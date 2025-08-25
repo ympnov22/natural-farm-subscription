@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { Button } from './ui/button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './ui/card'
 import { Badge } from './ui/badge'
@@ -146,8 +146,9 @@ export function PlanComparison() {
               <CardFooter>
                 <Button 
                   className={`w-full ${plan.popular ? 'bg-green-600 hover:bg-green-700' : 'bg-green-500 hover:bg-green-600'}`}
+                  asChild
                 >
-                  このプランを選択
+                  <a href="/plans">このプランを選択</a>
                 </Button>
               </CardFooter>
             </Card>

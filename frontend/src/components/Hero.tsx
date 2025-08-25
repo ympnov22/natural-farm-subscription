@@ -1,4 +1,3 @@
-import React from 'react'
 import { Button } from './ui/button'
 import { ArrowRight, Sprout, Heart, Users } from 'lucide-react'
 
@@ -19,9 +18,11 @@ export function Hero() {
           </p>
 
           <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
-            <Button size="lg" className="bg-green-600 hover:bg-green-700 text-lg px-8 py-4">
-              プランを見る
-              <ArrowRight className="ml-2 h-5 w-5" />
+            <Button size="lg" className="bg-green-600 hover:bg-green-700 text-lg px-8 py-4" asChild>
+              <a href="/plans">
+                プランを見る
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </a>
             </Button>
             <Button size="lg" variant="outline" className="text-lg px-8 py-4 border-green-600 text-green-600 hover:bg-green-50">
               体験談を読む
