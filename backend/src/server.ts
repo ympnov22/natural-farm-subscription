@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import dotenv from 'dotenv'
 import Stripe from 'stripe'
+import { WebhookHandlers } from './lib/webhook-handlers'
 
 dotenv.config()
 
@@ -164,9 +165,38 @@ app.post('/api/customer-portal', async (req, res) => {
   }
 })
 
-app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req, res) => {
+app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), async (req, res) => {
   if (isDemoMode) {
-    console.log('🎭 Demo Mode: Simulating webhook event')
+    console.log('🎭 Demo Mode: Processing webhook event with Supabase storage')
+    
+    try {
+      const demoSubscription = {
+        id: `sub_demo_${Date.now()}`,
+        customer: `cus_demo_${Date.now()}`,
+        status: 'active',
+        metadata: {
+          plan_size: 'medium',
+          plan_interval: 'month',
+          options: JSON.stringify([
+            { id: 'maintenance', name: 'お手入れ代行', price: 2000 }
+          ])
+        }
+      } as unknown as Stripe.Subscription
+
+      const demoCustomer = {
+        id: demoSubscription.customer as string,
+        email: 'demo@example.com',
+        name: 'デモユーザー'
+      } as Stripe.Customer
+
+      await WebhookHandlers.handleCustomerCreated(demoCustomer)
+      await WebhookHandlers.handleSubscriptionCreated(demoSubscription)
+      
+      console.log('✅ Demo webhook events processed successfully')
+    } catch (error) {
+      console.error('❌ Error processing demo webhook:', error)
+    }
+    
     res.json({ received: true })
     return
   }
@@ -187,21 +217,77 @@ app.post('/api/webhooks/stripe', express.raw({ type: 'application/json' }), (req
 
   console.log('Received webhook event:', event.type)
   
-  switch (event.type) {
-    case 'customer.subscription.created':
-    case 'customer.subscription.updated':
-    case 'customer.subscription.deleted':
-    case 'customer.created':
-      console.log(`Handling ${event.type}:`, event.data.object)
-      break
-    default:
-      console.log(`Unhandled event type: ${event.type}`)
+  try {
+    switch (event.type) {
+      case 'customer.created':
+        await WebhookHandlers.handleCustomerCreated(event.data.object as Stripe.Customer)
+        break
+      
+      case 'customer.subscription.created':
+        await WebhookHandlers.handleSubscriptionCreated(event.data.object as Stripe.Subscription)
+        break
+      
+      case 'customer.subscription.updated':
+        await WebhookHandlers.handleSubscriptionUpdated(event.data.object as Stripe.Subscription)
+        break
+      
+      case 'customer.subscription.deleted':
+        await WebhookHandlers.handleSubscriptionDeleted(event.data.object as Stripe.Subscription)
+        break
+      
+      default:
+        console.log(`Unhandled event type: ${event.type}`)
+    }
+    
+    console.log(`✅ Successfully processed ${event.type} event`)
+  } catch (error) {
+    console.error(`❌ Error processing ${event.type} event:`, error)
+    return res.status(500).json({ error: 'Webhook processing failed' })
   }
 
   res.json({ received: true })
 })
 
+app.get('/api/subscription/:sessionId', async (req, res) => {
+  try {
+    const { sessionId } = req.params
+    
+    if (isDemoMode) {
+      const demoData = {
+        id: sessionId,
+        customer_email: 'demo@example.com',
+        amount_total: 7000,
+        currency: 'jpy',
+        payment_status: 'paid',
+        subscription: {
+          id: 'sub_demo_123',
+          current_period_start: Date.now() / 1000,
+          current_period_end: (Date.now() / 1000) + (30 * 24 * 60 * 60),
+        },
+        metadata: {
+          plan_name: '中区画（10㎡）',
+          plan_size: '10㎡',
+          plan_interval: 'month',
+          options: JSON.stringify([
+            { id: 'maintenance', name: 'お手入れ代行', price: 2000 }
+          ])
+        }
+      }
+      
+      res.json(demoData)
+      return
+    }
+
+    res.status(404).json({ error: 'Session not found' })
+  } catch (error) {
+    console.error('Error fetching subscription data:', error)
+    res.status(500).json({ error: 'Failed to fetch subscription data' })
+  }
+})
+
 app.listen(port, () => {
   console.log(`🚀 Backend server running at http://localhost:${port}`)
   console.log(`📊 Health check: http://localhost:${port}/health`)
+  console.log(`🔗 Webhook endpoint: http://localhost:${port}/api/webhooks/stripe`)
+  console.log(`📋 Subscription API: http://localhost:${port}/api/subscription/:sessionId`)
 })
